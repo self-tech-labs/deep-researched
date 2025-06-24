@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Deep Research Archive
 
-## Getting Started
+A minimalist web application for sharing and discovering AI-powered research from various LLM providers.
 
-First, run the development server:
+## Features
 
+- **Ultra-minimalist interface** with a single omnipresent search bar
+- **Share research links** from Claude, ChatGPT, Gemini, Grok, and other LLM providers
+- **Natural language search** to find relevant research
+- **Automatic content extraction** and metadata generation
+- **Provider filtering** to search within specific AI platforms
+- **Social attribution** to credit research contributors
+
+## Tech Stack
+
+- **Framework**: Next.js 14 with App Router
+- **UI**: Shadcn/UI components with Tailwind CSS
+- **Database**: Neon (PostgreSQL)
+- **ORM**: Drizzle ORM
+- **Web Scraping**: Cheerio
+
+## Local Development
+
+1. Clone the repository:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone <your-repo-url>
+cd deep-researched
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Install dependencies:
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. Set up environment variables:
+   - Copy `.env.example` to `.env.local`
+   - Add your Neon database connection string
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+4. Run database migrations:
+```bash
+npm run db:push
+```
 
-## Learn More
+5. Start the development server:
+```bash
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+6. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## How It Works
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. **Sharing Research**: Paste a link from any LLM provider into the search bar. The app will:
+   - Detect it's a URL and show an "Add" button
+   - Scrape the content from the page
+   - Extract metadata and keywords
+   - Store it in the database for others to discover
 
-## Deploy on Vercel
+2. **Searching Research**: Type natural language queries to find research. The app will:
+   - Search through titles, descriptions, content, and tags
+   - Rank results by relevance
+   - Allow filtering by provider
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Note
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+This is a prototype running in local mode. In production, you'll need:
+- A Neon database with proper connection string
+- Enhanced web scraping for provider-specific content extraction
+- Rate limiting and security measures
+- Full-text search capabilities for better performance
