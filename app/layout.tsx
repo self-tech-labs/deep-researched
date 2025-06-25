@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Deep Research Archive",
-  description: "Share and discover AI-powered research from across the web",
-  keywords: ["AI research", "LLM", "ChatGPT", "Claude", "Gemini", "research archive"],
+  title: "Deep Research Archive | RITSL.COM",
+  description: "Share and discover AI-powered research from across the web. Built with love by RITSL.COM",
+  keywords: ["AI research", "LLM", "ChatGPT", "Claude", "Gemini", "research archive", "RITSL"],
 };
 
 export default function RootLayout({
