@@ -14,6 +14,7 @@ export const researches = pgTable('researches', {
   authorHandle: text('author_handle'), // Social media handle or link
   authorName: text('author_name'),
   viewCount: integer('view_count').default(0).notNull(),
+  upvotes: integer('upvotes').default(0).notNull(),
   isProcessed: varchar('is_processed', { length: 20 }).default('pending').notNull(), // 'pending', 'processed', 'failed'
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

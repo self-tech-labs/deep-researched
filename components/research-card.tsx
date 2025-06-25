@@ -1,8 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ExternalLink, User, Calendar } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ExternalLink, User, Calendar, Heart } from 'lucide-react';
 import { Research } from '@/lib/db/schema';
 
 interface ResearchCardProps {
@@ -10,6 +12,10 @@ interface ResearchCardProps {
 }
 
 export function ResearchCard({ research }: ResearchCardProps) {
+  const [upvotes, setUpvotes] = useState(research.upvotes || 0);
+  const [isUpvoting, setIsUpvoting] = useState(false);
+  const [hasUpvoted, setHasUpvoted] = useState(false);
+
   const providerColors: Record<string, string> = {
     claude: 'bg-purple-500',
     chatgpt: 'bg-green-500',
@@ -25,6 +31,35 @@ export function ResearchCard({ research }: ResearchCardProps) {
       day: 'numeric',
       year: 'numeric',
     });
+  };
+
+  const handleUpvote = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isUpvoting || hasUpvoted) return;
+
+    setIsUpvoting(true);
+    try {
+      const response = await fetch('/api/research/upvote', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ researchId: research.id }),
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        setUpvotes(data.newUpvoteCount || upvotes + 1);
+        setHasUpvoted(true);
+      } else {
+        console.error('Failed to upvote:', data.error);
+      }
+    } catch (error) {
+      console.error('Error upvoting:', error);
+    } finally {
+      setIsUpvoting(false);
+    }
   };
 
   return (
@@ -72,16 +107,31 @@ export function ResearchCard({ research }: ResearchCardProps) {
               </div>
             </div>
             
-            <a
-              href={research.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 hover:text-primary transition-colors"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <span>View</span>
-              <ExternalLink className="h-3 w-3" />
-            </a>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleUpvote}
+                disabled={isUpvoting || hasUpvoted}
+                className={`h-8 px-2 ${hasUpvoted ? 'text-red-500' : 'hover:text-red-500'}`}
+              >
+                <Heart 
+                  className={`h-4 w-4 mr-1 ${hasUpvoted ? 'fill-current' : ''}`} 
+                />
+                <span className="text-xs">{upvotes}</span>
+              </Button>
+              
+              <a
+                href={research.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 hover:text-primary transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span>View</span>
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
           </div>
         </div>
       </CardContent>

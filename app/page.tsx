@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ResearchCard } from '@/components/research-card';
 import { SubmitDialog } from '@/components/submit-dialog';
+import { Navigation } from '@/components/navigation';
+import { FeaturedResearch } from '@/components/featured-research';
 import { Search, Plus, Loader2, Sparkles } from 'lucide-react';
 import { isValidUrl } from '@/lib/search';
 import { Research } from '@/lib/db/schema';
@@ -18,6 +20,7 @@ export default function Home() {
   const [isSubmitOpen, setIsSubmitOpen] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [showFeatured, setShowFeatured] = useState(true);
   
   const debouncedQuery = useDebounce(query, 500);
 
@@ -25,11 +28,13 @@ export default function Home() {
     if (!searchQuery.trim()) {
       setResults([]);
       setHasSearched(false);
+      setShowFeatured(true);
       return;
     }
 
     setIsLoading(true);
     setHasSearched(true);
+    setShowFeatured(false);
 
     try {
       const params = new URLSearchParams({
@@ -57,6 +62,10 @@ export default function Home() {
   useEffect(() => {
     if (debouncedQuery && !isValidUrl(debouncedQuery)) {
       handleSearch(debouncedQuery);
+    } else if (!debouncedQuery) {
+      setShowFeatured(true);
+      setHasSearched(false);
+      setResults([]);
     }
   }, [debouncedQuery, handleSearch]);
 
@@ -76,17 +85,31 @@ export default function Home() {
     }
   };
 
+  const handleSearchFocus = () => {
+    setShowFeatured(false);
+  };
+
+  const handleViewAllClick = () => {
+    setQuery('');
+    setShowFeatured(false);
+    setHasSearched(true);
+    // Trigger a search for all research
+    handleSearch(' ');
+  };
+
   const providers = ['claude', 'chatgpt', 'gemini', 'grok', 'perplexity'];
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-gray-900 dark:to-gray-800">
+      <Navigation />
+      
       <div className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* Header */}
+        {/* Hero Section */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            Deep Research Archive
+            Discover AI Research
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-gray-600 dark:text-gray-400 text-lg">
             Share and discover AI-powered research from across the web
           </p>
         </div>
@@ -98,6 +121,7 @@ export default function Home() {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onFocus={handleSearchFocus}
               placeholder="Search for research or paste a research URL..."
               className="w-full h-14 pl-5 pr-32 text-lg rounded-full shadow-lg border-2 focus:border-primary"
             />
@@ -130,7 +154,7 @@ export default function Home() {
         </form>
 
         {/* Provider Filter */}
-        {!isValidUrl(query) && (
+        {!isValidUrl(query) && (hasSearched || !showFeatured) && (
           <div className="flex justify-center gap-2 mb-8 flex-wrap">
             <Badge
               variant={selectedProvider === null ? "default" : "outline"}
@@ -152,8 +176,13 @@ export default function Home() {
           </div>
         )}
 
-        {/* Results */}
-        {hasSearched && (
+        {/* Featured Research (shown on landing) */}
+        {showFeatured && !hasSearched && (
+          <FeaturedResearch onSearchClick={handleViewAllClick} />
+        )}
+
+        {/* Search Results */}
+        {hasSearched && !showFeatured && (
           <div className="space-y-6">
             {isLoading ? (
               <div className="text-center py-12">
@@ -195,16 +224,9 @@ export default function Home() {
           </div>
         )}
 
-        {/* Empty State */}
-        {!hasSearched && !query && (
+        {/* Call to Action - only show when no search has been performed */}
+        {!hasSearched && showFeatured && (
           <div className="text-center py-16">
-            <Sparkles className="h-16 w-16 mx-auto text-gray-400 mb-6" />
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
-              Welcome to Deep Research Archive
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto mb-8">
-              Search for existing AI research or share your own by pasting a link from any LLM provider.
-            </p>
             <div className="flex justify-center gap-4">
               <Button
                 onClick={() => setIsSubmitOpen(true)}
@@ -212,6 +234,14 @@ export default function Home() {
               >
                 <Plus className="h-5 w-5 mr-2" />
                 Share Research
+              </Button>
+              <Button
+                onClick={handleViewAllClick}
+                variant="outline"
+                size="lg"
+              >
+                <Search className="h-5 w-5 mr-2" />
+                Browse All
               </Button>
             </div>
           </div>

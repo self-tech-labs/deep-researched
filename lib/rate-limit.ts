@@ -10,11 +10,19 @@ const rateLimiters = {
     points: 10, // Number of requests
     duration: 3600, // Per 3600 seconds (1 hour)
   }),
+  upvote: new RateLimiterMemory({
+    points: 30, // Number of requests
+    duration: 60, // Per 60 seconds (1 minute)
+  }),
+  featured: new RateLimiterMemory({
+    points: 100, // Number of requests
+    duration: 60, // Per 60 seconds (1 minute)
+  }),
 };
 
 export async function checkRateLimit(
   request: NextRequest,
-  type: 'search' | 'submit'
+  type: 'search' | 'submit' | 'upvote' | 'featured'
 ): Promise<NextResponse | null> {
   const ip = (request as any).ip || request.headers.get('x-forwarded-for') || 'anonymous';
   

@@ -8,6 +8,13 @@
       "when": 1750847065176,
       "tag": "0000_bitter_arachne",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1750848401171,
+      "tag": "0001_careful_blindfold",
+      "breakpoints": true
     }
   ]
 }
