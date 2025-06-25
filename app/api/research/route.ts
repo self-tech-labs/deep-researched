@@ -1,13 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, researches } from '@/lib/db';
 import { scrapeResearchFromUrl, extractKeywords } from '@/lib/scraper';
+import { processResearchContent } from '@/lib/anthropic';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { eq } from 'drizzle-orm';
+import { z } from 'zod';
 
 // Mock database for local development
 let mockDatabase: any[] = [];
 
+const createResearchSchema = z.object({
+  url: z.string().url('Invalid URL format'),
+  authorHandle: z.string().optional(),
+  authorName: z.string().max(100).optional(),
+});
+
 export async function GET(request: NextRequest) {
   try {
+    // Check rate limit
+    const rateLimitResponse = await checkRateLimit(request, 'search');
+    if (rateLimitResponse) return rateLimitResponse;
+
     // For local development, return mock data
     if (!process.env.DATABASE_URL || process.env.DATABASE_URL.includes('mock')) {
       return NextResponse.json({ researches: mockDatabase });
@@ -26,15 +39,28 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { url, authorHandle, authorName } = body;
+    // Check rate limit for submissions
+    const rateLimitResponse = await checkRateLimit(request, 'submit');
+    if (rateLimitResponse) return rateLimitResponse;
 
-    if (!url) {
+    const body = await request.json();
+    
+    // Validate input
+    const validationResult = createResearchSchema.safeParse(body);
+    if (!validationResult.success) {
       return NextResponse.json(
-        { error: 'URL is required' },
+        { 
+          error: 'Invalid input', 
+          details: validationResult.error.issues.map(issue => ({
+            field: issue.path.join('.'),
+            message: issue.message
+          }))
+        },
         { status: 400 }
       );
     }
+
+    const { url, authorHandle, authorName } = validationResult.data;
 
     // Check if URL already exists
     if (!process.env.DATABASE_URL || process.env.DATABASE_URL.includes('mock')) {
@@ -60,25 +86,40 @@ export async function POST(request: NextRequest) {
     
     if (!scrapedData) {
       return NextResponse.json(
-        { error: 'Failed to scrape research content' },
+        { error: 'Failed to scrape research content. Please check the URL and try again.' },
         { status: 400 }
       );
     }
 
-    // Extract keywords for tags
-    const tags = extractKeywords(scrapedData.title + ' ' + scrapedData.description);
+    // Extract keywords for tags (fallback if Anthropic processing fails)
+    const fallbackTags = extractKeywords(
+      (scrapedData.title || '') + ' ' + (scrapedData.description || '') + ' ' + 
+      (scrapedData.content || '').substring(0, 1000)
+    );
+
+    // Use AI-enhanced data if available, otherwise fall back to scraped data
+    const tags = scrapedData.isProcessed 
+      ? scrapedData.metadata?.processedKeywords || fallbackTags 
+      : fallbackTags;
 
     const newResearch = {
       url,
-      title: scrapedData.title,
+      title: scrapedData.title || 'Untitled Research',
       description: scrapedData.description || '',
-      content: scrapedData.content,
-      provider: scrapedData.provider,
-      metadata: scrapedData.metadata,
+      content: scrapedData.content || '',
+      summary: scrapedData.summary,
+      provider: scrapedData.provider || 'other',
+      category: scrapedData.category,
+      metadata: {
+        ...scrapedData.metadata,
+        submittedAt: new Date().toISOString(),
+        ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+      },
       tags,
       authorHandle: authorHandle || null,
       authorName: authorName || null,
       viewCount: 0,
+      isProcessed: scrapedData.isProcessed ? 'processed' : 'pending',
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -95,9 +136,24 @@ export async function POST(request: NextRequest) {
 
     const [insertedResearch] = await db.insert(researches).values(newResearch).returning();
     
+    // If content wasn't processed with Anthropic, queue for background processing
+    if (!scrapedData.isProcessed && process.env.ANTHROPIC_API_KEY) {
+      // In a real production app, you'd queue this for background processing
+      // For now, we'll just log it
+      console.log('Research queued for background processing:', insertedResearch.id);
+    }
+    
     return NextResponse.json({ research: insertedResearch }, { status: 201 });
   } catch (error) {
     console.error('Error creating research:', error);
+    
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Validation error', details: error.issues },
+        { status: 400 }
+      );
+    }
+    
     return NextResponse.json(
       { error: 'Failed to create research entry' },
       { status: 500 }
