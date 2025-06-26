@@ -5,15 +5,21 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ResearchCard } from '@/components/research-card';
-import { Search, Loader2, Sparkles, CheckCircle, AlertCircle, Heart, ExternalLink } from 'lucide-react';
+import { SuggestionDialog } from '@/components/suggestion-dialog';
+import { LanguageSwitcher } from '@/components/language-switcher';
+import { Search, Loader2, Sparkles, CheckCircle, AlertCircle, Heart, ExternalLink, RefreshCw } from 'lucide-react';
 import { isValidUrl } from '@/lib/search';
 import { Research } from '@/lib/db/schema';
 import { useDebounce } from '@/hooks/use-debounce';
+import { Language, getTranslations } from '@/lib/i18n';
 
 export default function Home() {
+  const [language, setLanguage] = useState<Language>('en');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Research[]>([]);
+  const [recentResearches, setRecentResearches] = useState<Research[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingRecent, setIsLoadingRecent] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [submitMessage, setSubmitMessage] = useState('');
@@ -21,6 +27,52 @@ export default function Home() {
   const [hasSearched, setHasSearched] = useState(false);
   
   const debouncedQuery = useDebounce(query, 500);
+  const t = getTranslations(language);
+
+  // Load language from localStorage on mount
+  useEffect(() => {
+    const savedLanguage = localStorage.getItem('language') as Language;
+    if (savedLanguage && (savedLanguage === 'en' || savedLanguage === 'fr')) {
+      setLanguage(savedLanguage);
+    }
+  }, []);
+
+  // Save language to localStorage when changed
+  const handleLanguageChange = (newLanguage: Language) => {
+    setLanguage(newLanguage);
+    localStorage.setItem('language', newLanguage);
+  };
+
+  // Fetch recent researches on component mount
+  const fetchRecentResearches = useCallback(async () => {
+    setIsLoadingRecent(true);
+    try {
+      const response = await fetch('/api/research');
+      const data = await response.json();
+
+      if (response.ok) {
+        // Sort by creation date (most recent first) and take first 12
+        const sortedResearches = (data.researches || [])
+          .sort((a: Research, b: Research) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )
+          .slice(0, 12);
+        setRecentResearches(sortedResearches);
+      } else {
+        console.error('Failed to fetch recent researches:', data.error);
+        setRecentResearches([]);
+      }
+    } catch (error) {
+      console.error('Error fetching recent researches:', error);
+      setRecentResearches([]);
+    } finally {
+      setIsLoadingRecent(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRecentResearches();
+  }, [fetchRecentResearches]);
 
   const handleSearch = useCallback(async (searchQuery: string) => {
     if (!searchQuery.trim()) {
@@ -75,8 +127,11 @@ export default function Home() {
       }
 
       setSubmitStatus('success');
-      setSubmitMessage('Research added successfully!');
+      setSubmitMessage(t.researchAdded);
       setQuery('');
+      
+      // Refresh recent researches to show the new addition
+      fetchRecentResearches();
       
       // Clear success message after 3 seconds
       setTimeout(() => {
@@ -116,6 +171,8 @@ export default function Home() {
   const handleRefresh = () => {
     if (query.trim() && !isValidUrl(query)) {
       handleSearch(query);
+    } else if (!hasSearched) {
+      fetchRecentResearches();
     }
   };
 
@@ -128,10 +185,10 @@ export default function Home() {
         <div className="text-center mb-12">
           <div className="flex items-center justify-center gap-3 mb-4">
             <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
-              Deep Research Archive
+              {t.title}
             </h1>
             <div className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-blue-100 to-purple-100 dark:from-blue-900 dark:to-purple-900 rounded-full border">
-              <span className="text-sm font-medium text-blue-700 dark:text-blue-300">by</span>
+              <span className="text-sm font-medium text-blue-700 dark:text-blue-300">{t.by}</span>
               <a 
                 href="https://ritsl.com" 
                 target="_blank" 
@@ -144,8 +201,17 @@ export default function Home() {
             </div>
           </div>
           <p className="text-gray-600 dark:text-gray-400">
-            Share and discover AI-powered research from across the web
+            {t.subtitle}
           </p>
+          
+          {/* Language Switcher and Suggestion Button */}
+          <div className="flex items-center justify-center gap-4 mt-6">
+            <LanguageSwitcher 
+              currentLanguage={language} 
+              onLanguageChange={handleLanguageChange} 
+            />
+            <SuggestionDialog t={t} />
+          </div>
         </div>
 
         {/* Search Bar */}
@@ -155,7 +221,7 @@ export default function Home() {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search for research or paste a research URL to add it..."
+              placeholder={t.searchPlaceholder}
               className="w-full h-14 pl-5 pr-32 text-lg rounded-full shadow-lg border-2 focus:border-primary"
               disabled={isSubmitting}
             />
@@ -196,15 +262,15 @@ export default function Home() {
           </div>
         )}
 
-        {/* Provider Filter */}
-        {!isValidUrl(query) && (
+        {/* Provider Filter - only show when searching */}
+        {!isValidUrl(query) && hasSearched && (
           <div className="flex justify-center gap-2 mb-8 flex-wrap">
             <Badge
               variant={selectedProvider === null ? "default" : "outline"}
               className="cursor-pointer hover:bg-primary/10 transition-colors"
               onClick={() => setSelectedProvider(null)}
             >
-              All Providers
+              {t.allProviders}
             </Badge>
             {providers.map((provider) => (
               <Badge
@@ -219,24 +285,26 @@ export default function Home() {
           </div>
         )}
 
-        {/* Results */}
+        {/* Search Results */}
         {hasSearched && (
           <div className="space-y-6">
             {isLoading ? (
               <div className="text-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-400" />
-                <p className="text-gray-500 mt-4">Searching research archive...</p>
+                <p className="text-gray-500 mt-4">{t.searching}</p>
               </div>
             ) : results.length > 0 ? (
               <>
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-gray-600 dark:text-gray-400">
-                    Found {results.length} research{results.length !== 1 ? 'es' : ''}
+                    {results.length === 1 
+                      ? `1 ${t.foundResult}` 
+                      : `${results.length} ${t.foundResults}`}
                   </p>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {results.map((research) => (
-                    <ResearchCard key={research.id} research={research} />
+                    <ResearchCard key={research.id} research={research} t={t} />
                   ))}
                 </div>
               </>
@@ -244,56 +312,92 @@ export default function Home() {
               <div className="text-center py-12">
                 <Sparkles className="h-12 w-12 mx-auto text-gray-400 mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                  No research found
+                  {t.noResultsTitle}
                 </h3>
                 <p className="text-gray-500 mb-6">
-                  Try different keywords or paste a research URL to add new content!
+                  {t.noResultsMessage}
                 </p>
               </div>
             )}
           </div>
         )}
 
-        {/* Empty State */}
-        {!hasSearched && !query && (
-          <div className="text-center py-16">
-            <div className="mb-8">
-              <Sparkles className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
-                Welcome to Deep Research Archive
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
-                Search through curated AI research or simply paste a URL to add new content to the archive.
-              </p>
-            </div>
-
-            <div className="grid gap-8 md:grid-cols-2 max-w-4xl mx-auto text-left">
-              <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-                <div className="flex items-center gap-3 mb-3">
-                  <Search className="h-6 w-6 text-blue-500" />
-                  <h3 className="font-semibold text-gray-900 dark:text-white">Search Research</h3>
-                </div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
-                  Find existing research by keywords, topics, or AI provider. Our archive contains curated content from Claude, ChatGPT, Gemini, and more.
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-500">
-                  Just type your search terms in the bar above
+        {/* Recent Research - show when not searching */}
+        {!hasSearched && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+                  {t.recentResearchTitle}
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400">
+                  {t.recentResearchSubtitle}
                 </p>
               </div>
-
-              <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-                <div className="flex items-center gap-3 mb-3">
-                  <Sparkles className="h-6 w-6 text-purple-500" />
-                  <h3 className="font-semibold text-gray-900 dark:text-white">Add Research</h3>
-                </div>
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
-                  Share valuable AI research by pasting a URL. We'll automatically extract and index the content for others to discover.
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-500">
-                  Paste any research URL in the search bar and press Enter
-                </p>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={isLoadingRecent}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoadingRecent ? 'animate-spin' : ''}`} />
+                {t.refresh}
+              </Button>
             </div>
+
+            {isLoadingRecent ? (
+              <div className="text-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-400" />
+                <p className="text-gray-500 mt-4">{t.loadingRecent}</p>
+              </div>
+            ) : recentResearches.length > 0 ? (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {recentResearches.map((research) => (
+                  <ResearchCard key={research.id} research={research} t={t} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-16">
+                <div className="mb-8">
+                  <Sparkles className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+                  <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+                    {t.welcomeTitle}
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-400 max-w-md mx-auto">
+                    {t.noResearchYet}
+                  </p>
+                </div>
+
+                <div className="grid gap-8 md:grid-cols-2 max-w-4xl mx-auto text-left">
+                  <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+                    <div className="flex items-center gap-3 mb-3">
+                      <Search className="h-6 w-6 text-blue-500" />
+                      <h3 className="font-semibold text-gray-900 dark:text-white">{t.searchResearchTitle}</h3>
+                    </div>
+                    <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+                      {t.searchResearchDescription}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-500">
+                      {t.searchResearchHint}
+                    </p>
+                  </div>
+
+                  <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+                    <div className="flex items-center gap-3 mb-3">
+                      <Sparkles className="h-6 w-6 text-purple-500" />
+                      <h3 className="font-semibold text-gray-900 dark:text-white">{t.addResearchTitle}</h3>
+                    </div>
+                    <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+                      {t.addResearchDescription}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-500">
+                      {t.addResearchHint}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -303,9 +407,9 @@ export default function Home() {
         <div className="container mx-auto px-4 py-6 max-w-6xl">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-              <span>Made with</span>
+              <span>{t.madeWith}</span>
               <Heart className="h-4 w-4 text-red-500 fill-current animate-pulse" />
-              <span>by</span>
+              <span>{t.by}</span>
               <a 
                 href="https://ritsl.com" 
                 target="_blank" 
@@ -317,7 +421,7 @@ export default function Home() {
               </a>
             </div>
             <div className="text-xs text-gray-500 dark:text-gray-500">
-              © 2024 RITSL.COM - Empowering AI Research Discovery
+              {t.copyright}
             </div>
           </div>
         </div>

@@ -4,12 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { ExternalLink, User, Calendar } from 'lucide-react';
 import { Research } from '@/lib/db/schema';
+import { Translations } from '@/lib/i18n';
 
 interface ResearchCardProps {
   research: Research;
+  t: Translations;
 }
 
-export function ResearchCard({ research }: ResearchCardProps) {
+export function ResearchCard({ research, t }: ResearchCardProps) {
   const providerColors: Record<string, string> = {
     claude: 'bg-purple-500',
     chatgpt: 'bg-green-500',
@@ -36,13 +38,13 @@ export function ResearchCard({ research }: ResearchCardProps) {
               {research.title}
             </CardTitle>
             <CardDescription className="mt-2 line-clamp-2">
-              {research.description || 'No description available'}
+              {research.description || t.noDescription}
             </CardDescription>
           </div>
           <Badge 
             className={`${providerColors[research.provider || 'other']} text-white`}
           >
-            {research.provider || 'Unknown'}
+            {research.provider || t.unknown}
           </Badge>
         </div>
       </CardHeader>
@@ -79,7 +81,7 @@ export function ResearchCard({ research }: ResearchCardProps) {
               className="flex items-center gap-1 hover:text-primary transition-colors"
               onClick={(e) => e.stopPropagation()}
             >
-              <span>View</span>
+              <span>{t.view}</span>
               <ExternalLink className="h-3 w-3" />
             </a>
           </div>
