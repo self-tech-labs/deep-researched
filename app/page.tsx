@@ -204,13 +204,12 @@ export default function Home() {
             {t.subtitle}
           </p>
           
-          {/* Language Switcher and Suggestion Button */}
+          {/* Language Switcher */}
           <div className="flex items-center justify-center gap-4 mt-6">
             <LanguageSwitcher 
               currentLanguage={language} 
               onLanguageChange={handleLanguageChange} 
             />
-            <SuggestionDialog t={t} />
           </div>
         </div>
 
